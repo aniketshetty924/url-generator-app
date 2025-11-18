@@ -104,7 +104,7 @@
             font-weight: 600;
         }
 
-        input, textarea {
+        input, textarea, select {
             width: 100%;
             padding: 12px;
             border: 1px solid #ced4da;
@@ -113,7 +113,7 @@
             transition: border-color 0.3s;
         }
 
-        input:focus, textarea:focus {
+        input:focus, textarea:focus, select:focus {
             outline: none;
             border-color: var(--primary-color);
             box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.2);
@@ -123,6 +123,10 @@
             min-height: 150px;
             resize: vertical;
             font-family: monospace;
+        }
+
+        select {
+            cursor: pointer;
         }
 
         .btn {
@@ -257,6 +261,16 @@
             margin-bottom: 5px;
         }
 
+        .url-preview {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: var(--border-radius);
+            margin-top: 10px;
+            font-family: monospace;
+            font-size: 14px;
+            border: 1px dashed #ced4da;
+        }
+
         @media (max-width: 768px) {
             .tabs {
                 flex-direction: column;
@@ -287,18 +301,29 @@
         <div class="instructions">
             <h3>How to use:</h3>
             <ul>
-                <li>Provide a base URL template (e.g., https://surveys.adeptpanels.com/iws-gen-2/?isTest=dev)</li>
+                <li>Provide a base URL template (e.g., https://surveys.adeptpanels.com/iws-gen-2/)</li>
+                <li>Select the environment (dev or uat)</li>
                 <li>Provide prospect details in JSON format</li>
-                <li>The tool will replace parameters in the URL with values from the prospect data</li>
-                <li>Parameters mapped: campaignDataId → prospectCampaignDataId, prospectEmail → workEmail, prospectName → firstName + lastName, prospectId → prospect.id</li>
+                <li>The tool will dynamically add parameters to the URL with values from the prospect data</li>
+                <li>Parameters mapped: isTest → environment, campaignDataId → prospectCampaignDataId, prospectEmail → workEmail, prospectName → firstName + lastName, prospectId → prospect.id</li>
             </ul>
         </div>
 
         <div id="single-tab" class="tab-content active">
             <div class="form-group">
                 <label for="single-dummy-url">Base URL Template</label>
-                <input type="text" id="single-dummy-url" placeholder="https://surveys.adeptpanels.com/iws-gen-2/?isTest=dev" value="https://surveys.adeptpanels.com/iws-gen-2/?isTest=dev">
+                <input type="text" id="single-dummy-url" placeholder="https://surveys.adeptpanels.com/iws-gen-2/" value="https://surveys.adeptpanels.com/iws-gen-2/">
+                <div class="url-preview" id="single-url-preview">Full URL will appear here</div>
             </div>
+            
+            <div class="form-group">
+                <label for="single-environment">Environment</label>
+                <select id="single-environment">
+                    <option value="dev">Development (dev)</option>
+                    <option value="uat">UAT (uat)</option>
+                </select>
+            </div>
+            
             <div class="form-group">
                 <label for="single-prospect-details">Prospect Details (JSON)</label>
                 <textarea id="single-prospect-details" placeholder="Paste prospect JSON here"></textarea>
@@ -318,7 +343,16 @@
         <div id="multiple-tab" class="tab-content">
             <div class="form-group">
                 <label for="multiple-dummy-url">Base URL Template</label>
-                <input type="text" id="multiple-dummy-url" placeholder="https://surveys.adeptpanels.com/iws-gen-2/?isTest=dev" value="https://surveys.adeptpanels.com/iws-gen-2/?isTest=dev">
+                <input type="text" id="multiple-dummy-url" placeholder="https://surveys.adeptpanels.com/iws-gen-2/" value="https://surveys.adeptpanels.com/iws-gen-2/">
+                <div class="url-preview" id="multiple-url-preview">Full URL will appear here</div>
+            </div>
+            
+            <div class="form-group">
+                <label for="multiple-environment">Environment</label>
+                <select id="multiple-environment">
+                    <option value="dev">Development (dev)</option>
+                    <option value="uat">UAT (uat)</option>
+                </select>
             </div>
             
             <div id="prospect-groups">
@@ -358,6 +392,9 @@
                     // Update active content
                     tabContents.forEach(content => content.classList.remove('active'));
                     document.getElementById(`${tabId}-tab`).classList.add('active');
+                    
+                    // Update URL preview when switching tabs
+                    updateUrlPreview();
                 });
             });
 
@@ -396,6 +433,12 @@
                 });
             });
 
+            // Update URL preview when inputs change
+            document.getElementById('single-dummy-url').addEventListener('input', updateUrlPreview);
+            document.getElementById('single-environment').addEventListener('change', updateUrlPreview);
+            document.getElementById('multiple-dummy-url').addEventListener('input', updateUrlPreview);
+            document.getElementById('multiple-environment').addEventListener('change', updateUrlPreview);
+
             // Single URL generation
             const singleGenerateBtn = document.getElementById('single-generate-btn');
             singleGenerateBtn.addEventListener('click', generateSingleURL);
@@ -418,18 +461,41 @@
                 }
             });
 
+            function updateUrlPreview() {
+                const activeTab = document.querySelector('.tab.active').getAttribute('data-tab');
+                const baseUrl = document.getElementById(`${activeTab}-dummy-url`).value.trim();
+                const environment = document.getElementById(`${activeTab}-environment`).value;
+                
+                if (!baseUrl) {
+                    document.getElementById(`${activeTab}-url-preview`).textContent = 'Full URL will appear here';
+                    return;
+                }
+                
+                let previewUrl = baseUrl;
+                if (!previewUrl.endsWith('/')) {
+                    previewUrl += '/';
+                }
+                
+                // Add isTest parameter
+                const separator = previewUrl.includes('?') ? '&' : '?';
+                previewUrl += `${separator}isTest=${environment}`;
+                
+                document.getElementById(`${activeTab}-url-preview`).textContent = previewUrl;
+            }
+
             function generateSingleURL() {
-                const dummyURL = document.getElementById('single-dummy-url').value.trim();
+                const baseURL = document.getElementById('single-dummy-url').value.trim();
+                const environment = document.getElementById('single-environment').value;
                 const prospectDetails = document.getElementById('single-prospect-details').value.trim();
                 
-                if (!dummyURL || !prospectDetails) {
+                if (!baseURL || !prospectDetails) {
                     showAlert('Please provide both base URL and prospect details', 'error');
                     return;
                 }
                 
                 try {
                     const prospect = JSON.parse(prospectDetails);
-                    const generatedURL = generateURL(dummyURL, prospect);
+                    const generatedURL = generateURL(baseURL, environment, prospect);
                     
                     document.getElementById('single-prospect-name').textContent = 
                         `${prospect.prospect.firstName} ${prospect.prospect.lastName}`;
@@ -443,10 +509,11 @@
             }
 
             function generateMultipleURLs() {
-                const dummyURL = document.getElementById('multiple-dummy-url').value.trim();
+                const baseURL = document.getElementById('multiple-dummy-url').value.trim();
+                const environment = document.getElementById('multiple-environment').value;
                 const prospectDetailsElements = document.querySelectorAll('#multiple-tab .prospect-details');
                 
-                if (!dummyURL) {
+                if (!baseURL) {
                     showAlert('Please provide base URL template', 'error');
                     return;
                 }
@@ -455,6 +522,7 @@
                 resultsContainer.innerHTML = '';
                 
                 let hasErrors = false;
+                let validCount = 0;
                 
                 prospectDetailsElements.forEach((element, index) => {
                     const prospectDetails = element.value.trim();
@@ -467,7 +535,7 @@
                     
                     try {
                         const prospect = JSON.parse(prospectDetails);
-                        const generatedURL = generateURL(dummyURL, prospect);
+                        const generatedURL = generateURL(baseURL, environment, prospect);
                         
                         const resultItem = document.createElement('div');
                         resultItem.className = 'result-item';
@@ -481,59 +549,36 @@
                         resultItem.querySelector('.generated-url').id = `url-${index}`;
                         
                         resultsContainer.appendChild(resultItem);
+                        validCount++;
                     } catch (error) {
                         showAlert(`Invalid JSON format for prospect ${index + 1}`, 'error');
                         hasErrors = true;
                     }
                 });
                 
-                if (!hasErrors && resultsContainer.children.length > 0) {
+                if (!hasErrors && validCount > 0) {
                     document.getElementById('multiple-results').classList.add('active');
-                    showAlert('All URLs generated successfully!', 'success');
+                    showAlert(`${validCount} URL${validCount > 1 ? 's' : ''} generated successfully!`, 'success');
                 }
             }
 
-            function generateURL(dummyURL, prospect) {
+            function generateURL(baseURL, environment, prospect) {
                 // Extract parameters from prospect data
                 const campaignDataId = prospect.prospectCampaignDataId;
                 const campaignId = prospect.campaignId;
                 const prospectEmail = prospect.workEmail;
-                const prospectName = `${prospect.prospect.firstName} ${prospect.prospect.lastName}`.replace(' ', '%20');
+                const prospectName = `${prospect.prospect.firstName} ${prospect.prospect.lastName}`.replace(/ /g, '%20');
                 const prospectId = prospect.prospect.id;
                 
-                // Replace parameters in the URL
-                let generatedURL = dummyURL;
-                
-                // Add parameters if they don't exist
-                if (!generatedURL.includes('campaignDataId=')) {
-                    generatedURL += (generatedURL.includes('?') ? '&' : '?') + 'campaignDataId=' + campaignDataId;
-                } else {
-                    generatedURL = generatedURL.replace(/campaignDataId=[^&]*/, 'campaignDataId=' + campaignDataId);
+                // Build the URL
+                let generatedURL = baseURL;
+                if (!generatedURL.endsWith('/')) {
+                    generatedURL += '/';
                 }
                 
-                if (!generatedURL.includes('campaignId=')) {
-                    generatedURL += '&campaignId=' + campaignId;
-                } else {
-                    generatedURL = generatedURL.replace(/campaignId=[^&]*/, 'campaignId=' + campaignId);
-                }
-                
-                if (!generatedURL.includes('prospectEmail=')) {
-                    generatedURL += '&prospectEmail=' + prospectEmail;
-                } else {
-                    generatedURL = generatedURL.replace(/prospectEmail=[^&]*/, 'prospectEmail=' + prospectEmail);
-                }
-                
-                if (!generatedURL.includes('prospectName=')) {
-                    generatedURL += '&prospectName=' + prospectName;
-                } else {
-                    generatedURL = generatedURL.replace(/prospectName=[^&]*/, 'prospectName=' + prospectName);
-                }
-                
-                if (!generatedURL.includes('prospectId=')) {
-                    generatedURL += '&prospectId=' + prospectId;
-                } else {
-                    generatedURL = generatedURL.replace(/prospectId=[^&]*/, 'prospectId=' + prospectId);
-                }
+                // Add parameters
+                const separator = generatedURL.includes('?') ? '&' : '?';
+                generatedURL += `${separator}isTest=${environment}&campaignDataId=${campaignDataId}&campaignId=${campaignId}&prospectEmail=${prospectEmail}&prospectName=${prospectName}&prospectId=${prospectId}`;
                 
                 return generatedURL;
             }
@@ -651,6 +696,9 @@
                     "name": "p2"
                 }
             }, null, 2);
+
+            // Initialize URL preview
+            updateUrlPreview();
         });
     </script>
 </body>
